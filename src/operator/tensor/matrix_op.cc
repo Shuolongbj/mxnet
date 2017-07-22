@@ -95,7 +95,11 @@ If the argument `reverse` is set to 1, then the special values are inferred from
 .set_attr<nnvm::FInplaceOption>("FInplaceOption",
   [](const NodeAttrs& attrs) {
     return std::vector<std::pair<int, int> >{{0, 0}};
-})
+  })
+.set_attr<nnvm::FInplaceIdentity>("FInplaceIdentity",
+  [](const NodeAttrs& attrs){
+    return std::vector<bool>{true};
+  })
 .add_argument("data", "NDArray-or-Symbol", "Input data to reshape.")
 .add_arguments(ReshapeParam::__FIELDS__());
 
@@ -133,8 +137,12 @@ Example::
 .set_attr<FCompute>("FCompute<cpu>", IdentityCompute<cpu>)
 .set_attr<nnvm::FInplaceOption>("FInplaceOption",
   [](const NodeAttrs& attrs) {
-  return std::vector<std::pair<int, int> >{{0, 0}};
-})
+    return std::vector<std::pair<int, int> >{{0, 0}};
+  })
+.set_attr<nnvm::FInplaceIdentity>("FInplaceIdentity",
+  [](const NodeAttrs& attrs){
+    return std::vector<bool>{true};
+  })
 .add_argument("data", "NDArray-or-Symbol", "Input array.");
 
 NNVM_REGISTER_OP(transpose)
@@ -211,6 +219,10 @@ will return a new array with shape ``(2,1,3,4)``.
   [](const NodeAttrs& attrs){
     return std::vector<std::pair<int, int> >{{0, 0}};
   })
+.set_attr<nnvm::FInplaceIdentity>("FInplaceIdentity",
+  [](const NodeAttrs& attrs){
+    return std::vector<bool>{true};
+  })
 .set_attr<nnvm::FGradient>("FGradient", ElemwiseGradUseNone{"_backward_copy"})
 .set_attr<FCompute>("FCompute<cpu>", IdentityCompute<cpu>)
 .add_argument("data", "NDArray-or-Symbol", "Source input")
@@ -222,7 +234,7 @@ NNVM_REGISTER_OP(slice)
 
 .. note:: ``crop`` is deprecated. Use ``slice`` instead.
 
-This function returns a sliced continous region of the array between the indices given
+This function returns a sliced continuous region of the array between the indices given
 by `begin` and `end`.
 
 For an input array of `n` dimensions, slice operation with ``begin=(b_0, b_1...b_n-1)`` indices
@@ -230,7 +242,7 @@ and ``end=(e_1, e_2, ... e_n)`` indices will result in an array with the shape
 ``(e_1-b_0, ..., e_n-b_n-1)``.
 
 The resulting array's *k*-th dimension contains elements
- from the *k*-th dimension of the input array with the open range ``[b_k, e_k)``.
+from the *k*-th dimension of the input array with the open range ``[b_k, e_k)``.
 
 Example::
 
@@ -354,6 +366,12 @@ NNVM_REGISTER_OP(dot)
 
     dot(x,y)[i,j,a,b] = sum(x[i,j,:]*y[:,a,b])
 
+  Example::
+
+    x = reshape([0,1,2,3,4,5,6,7], shape=(2,2,2))
+    y = reshape([7,6,5,4,3,2,1,0], shape=(2,2,2))
+    dot(x,y)[0,0,1,1] = 0
+    sum(x[0,0,:]*y[:,1,1]) = 0
 )doc" ADD_FILELINE)
 .set_num_inputs(2)
 .set_num_outputs(1)
@@ -497,7 +515,11 @@ NNVM_REGISTER_OP(_backward_repeat)
 .set_num_outputs(1)
 .set_attr_parser(ParamParser<RepeatParam>)
 .set_attr<nnvm::TIsBackward>("TIsBackward", true)
-.set_attr<FCompute>("FCompute<cpu>", RepeatOpBackward<cpu>);
+.set_attr<FCompute>("FCompute<cpu>", RepeatOpBackward<cpu>)
+.set_attr<FResourceRequest>("FResourceRequest",
+[](const NodeAttrs& attrs) {
+  return std::vector<ResourceRequest> {ResourceRequest::kTempSpace};
+});
 
 NNVM_REGISTER_OP(tile)
 .describe(R"code(Repeats the whole array multiple times.
@@ -554,7 +576,11 @@ NNVM_REGISTER_OP(_backward_tile)
 .set_num_outputs(1)
 .set_attr_parser(ParamParser<TileParam>)
 .set_attr<nnvm::TIsBackward>("TIsBackward", true)
-.set_attr<FCompute>("FCompute<cpu>", TileOpBackward<cpu>);
+.set_attr<FCompute>("FCompute<cpu>", TileOpBackward<cpu>)
+.set_attr<FResourceRequest>("FResourceRequest",
+[](const NodeAttrs& attrs) {
+  return std::vector<ResourceRequest> {ResourceRequest::kTempSpace};
+});
 
 NNVM_REGISTER_OP(reverse)
 .describe(R"code(Reverses the order of elements along given axis while preserving array shape.

@@ -19,12 +19,14 @@ __all__ = ['MXNetError']
 if sys.version_info[0] == 3:
     string_types = str,
     numeric_types = (float, int, np.float32, np.int32)
+    integer_types = int
     # this function is needed for python3
     # to convert ctypes.char_p .value back to python str
     py_str = lambda x: x.decode('utf-8')
 else:
     string_types = basestring,
     numeric_types = (float, int, long, np.float32, np.int32)
+    integer_types = (int, long)
     py_str = lambda x: x
 
 class _NullType(object):
@@ -38,10 +40,25 @@ class MXNetError(Exception):
     """Error that will be throwed by all mxnet functions."""
     pass
 
+class NotImplementedForSymbol(MXNetError):
+    def __init__(self, function, alias, *args):
+        super(NotImplementedForSymbol, self).__init__()
+        self.function = function.__name__
+        self.alias = alias
+        self.args = [str(type(a)) for a in args]
+    def __str__(self):
+        msg = 'Function {}'.format(self.function)
+        if self.alias:
+            msg += ' (namely operator "{}")'.format(self.alias)
+        if self.args:
+            msg += ' with arguments ({})'.format(', '.join(self.args))
+        msg += ' is not implemented for Symbol and only available in NDArray.'
+        return msg
+
 def _load_lib():
-    """Load libary by searching possible path."""
+    """Load library by searching possible path."""
     lib_path = libinfo.find_lib_path()
-    lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
+    lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_LOCAL)
     # DMatrix functions
     lib.MXGetLastError.restype = ctypes.c_char_p
     return lib
@@ -59,6 +76,7 @@ mx_real_t = np.float32
 NDArrayHandle = ctypes.c_void_p
 FunctionHandle = ctypes.c_void_p
 OpHandle = ctypes.c_void_p
+CachedOpHandle = ctypes.c_void_p
 SymbolHandle = ctypes.c_void_p
 ExecutorHandle = ctypes.c_void_p
 DataIterCreatorHandle = ctypes.c_void_p
@@ -96,6 +114,12 @@ if sys.version_info[0] < 3:
         -------
         str : c_char_p
             A char pointer that can be passed to C API.
+
+        Examples
+        --------
+        >>> x = mx.base.c_str("Hello, World")
+        >>> print x.value
+        Hello, World
         """
         return ctypes.c_char_p(string)
 else:
@@ -111,6 +135,12 @@ else:
         -------
         str : c_char_p
             A char pointer that can be passed to C API.
+
+        Examples
+        --------
+        >>> x = mx.base.c_str("Hello, World")
+        >>> print x.value
+        Hello, World
         """
         return ctypes.c_char_p(string.encode('utf-8'))
 
@@ -121,7 +151,7 @@ def c_array(ctype, values):
     Parameters
     ----------
     ctype : ctypes data type
-        Data type of the array we want to convert to.
+        Data type of the array we want to convert to, such as mx_float.
 
     values : tuple or list
         Data content.
@@ -130,6 +160,14 @@ def c_array(ctype, values):
     -------
     out : ctypes array
         Created ctypes array.
+
+    Examples
+    --------
+    >>> x = mx.base.c_array(mx.base.mx_float, [1, 2, 3])
+    >>> print len(x)
+    3
+    >>> x[1]
+    2.0
     """
     return (ctype * len(values))(*values)
 
